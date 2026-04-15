@@ -1,0 +1,1 @@
+Scrapes fantasy projections from Sleeper and initializes them in an sqlite db. Requires a sleeper account and for you to log in on microsoft edge. Included are two jupyter notebook files: fantasy_analysis.ipynb is the one with the most proper information. View the blog here: https://schroedersoftware.com/blog/fantasy-football-analysis
