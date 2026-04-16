@@ -1,9 +1,9 @@
 """
 Sleeper Fantasy Football Scraper -- 2026 Season
-League : https://sleeper.com/leagues/1347804040074919936/players
+League : https://sleeper.com/leagues/1347804040074919936/players (dummy league for testing)
 DB     : sleeper_2026.db
 
-What it fetches (all authenticated, no proxies):
+What it fetches:
   ADP         -- adp_ppr / adp_std / adp_half_ppr / adp_2qb / adp_dynasty
                  from https://api.sleeper.app/projections/nfl/2026?season_type=regular
   Projections -- season stat projections (rush_yd, rec_yd, pass_yd, TDs, etc.)
@@ -33,11 +33,9 @@ TOKEN SETUP (one-time, ~30 seconds):
 import os, sys, sqlite3
 import requests
 
-# ---------------------------------------------------------------------------
 # Config
-# ---------------------------------------------------------------------------
 
-LEAGUE_ID    = "1347804040074919936"
+LEAGUE_ID    = "1347804040074919936" #REPLACE WITH YOUR LEAGUE ID
 SEASON       = "2026"
 SEASON_TYPE  = "regular"
 DB_PATH      = "sleeper_2026.db"
@@ -47,9 +45,7 @@ BASE_NOVERS  = "https://api.sleeper.app"      # no /v1/ -- needed for proj endpo
 
 POSITIONS    = {"QB", "RB", "WR", "TE", "K", "DEF"}
 
-# ---------------------------------------------------------------------------
 # Token
-# ---------------------------------------------------------------------------
 
 def load_token() -> str:
     p = os.path.join(os.path.dirname(__file__), "sleeper_token.txt")
@@ -68,9 +64,7 @@ def load_token() -> str:
         open(p, "w").write(t)
     return t
 
-# ---------------------------------------------------------------------------
 # HTTP
-# ---------------------------------------------------------------------------
 
 sess = requests.Session()
 sess.headers.update({"User-Agent": "sleeper-scraper/3.0", "Content-Type": "application/json"})
@@ -87,9 +81,7 @@ def api_get(url: str, params: dict = None):
     r.raise_for_status()
     return r.json()
 
-# ---------------------------------------------------------------------------
 # API calls
-# ---------------------------------------------------------------------------
 
 def fetch_league() -> dict:
     return api_get(f"{BASE_V1}/league/{LEAGUE_ID}")
@@ -111,9 +103,7 @@ def fetch_season_projections(season: str) -> list:
                    params={"season_type": SEASON_TYPE})
     return data if isinstance(data, list) else []
 
-# ---------------------------------------------------------------------------
 # Database
-# ---------------------------------------------------------------------------
 
 SCHEMA = """
 PRAGMA journal_mode=WAL;
@@ -191,19 +181,16 @@ def init_db() -> sqlite3.Connection:
     conn.commit()
     return conn
 
-# ---------------------------------------------------------------------------
 # Fantasy points
-# ---------------------------------------------------------------------------
 
 def calc_pts(stats: dict, scoring: dict) -> float:
     return round(sum((stats.get(k) or 0) * v for k, v in scoring.items()), 4)
 
-# ---------------------------------------------------------------------------
 # VORP
-# ---------------------------------------------------------------------------
 
 # How many starters at each position before hitting replacement level.
 # Configurable here -- no hardcoded values in the calculation itself.
+# Number picks are explained in blog
 REPLACEMENT_RANK = {
     "QB": 26,
     "TE": 26,
@@ -262,9 +249,7 @@ def store_vorp(conn, vorp: dict):
     )
     conn.commit()
 
-# ---------------------------------------------------------------------------
 # Store helpers
-# ---------------------------------------------------------------------------
 
 def store_players(conn, players: dict) -> int:
     rows = []
@@ -358,9 +343,7 @@ def store_projections(conn, proj_list: list, scoring: dict) -> dict:
     conn.commit()
     return counts
 
-# ---------------------------------------------------------------------------
 # Summary printout
-# ---------------------------------------------------------------------------
 
 def print_summary(conn):
     print("\n" + "-"*80)
@@ -401,9 +384,7 @@ def print_summary(conn):
         print(f"  {adp_ppr:>6.1f}  {name:<26} {pos:<5} {team or '??':<5} "
               f"{lg_pts:>8.1f}  {ppr_pts:>8.1f}  {adp_std or 0:>8.1f}")
 
-# ---------------------------------------------------------------------------
 # Main
-# ---------------------------------------------------------------------------
 
 def main():
     print(f"=== Sleeper {SEASON} Scraper  (league {LEAGUE_ID}) ===\n")
@@ -464,27 +445,6 @@ def main():
     conn.close()
 
     print(f"\nDatabase saved: {DB_PATH}")
-    print("""
-Useful queries:
-  sqlite3 sleeper_2026.db ".mode column" ".headers on"
-
-  -- Full ranked list with all data
-  SELECT p.full_name, p.position, p.team,
-         a.adp_ppr, a.adp_std, a.adp_half_ppr,
-         sp.proj_pts_league, sp.pts_ppr,
-         sp.pass_yd, sp.rush_yd, sp.rec_yd,
-         sp.pass_td, sp.rush_td, sp.rec_td
-  FROM adp a
-  JOIN players p USING (player_id)
-  LEFT JOIN season_projections sp USING (player_id)
-  ORDER BY a.adp_ppr ASC;
-
-  -- Value picks (late ADP, high projected points)
-  SELECT p.full_name, p.position, p.team, a.adp_ppr, sp.proj_pts_league
-  FROM season_projections sp
-  JOIN players p USING (player_id)
-  JOIN adp a USING (player_id)
-  ORDER BY (sp.proj_pts_league / a.adp_ppr) DESC LIMIT 20;""")
 
 
 if __name__ == "__main__":
